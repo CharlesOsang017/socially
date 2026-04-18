@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser'
 import userRoutes from './routes/user.route.js'
 import { protectRoute } from './middleware/protectRoute.middleware.js'
 import {v2 as cloudinary} from 'cloudinary'
-
+import postRoutes from './routes/post.route.js'
 
 dotenv.config()
 // configure cloudinary
@@ -31,6 +31,7 @@ app.use(express.urlencoded({ extended: true })) // to parse form data(urlencoded
 // routes
 app.use('/api/auth', authRoutes)
 app.use('/api/user/',protectRoute, userRoutes)
+app.use('/api/post/',protectRoute, postRoutes)
 
 
 app.listen(port, () => {
