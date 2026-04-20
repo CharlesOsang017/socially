@@ -25,7 +25,7 @@ const port = process.env.PORT || 8000
 
 // middlewares
 app.use(cookieParser())
-app.use(express.json()) // to parse json data
+app.use(express.json({limit: "5mb"})) // to parse json data
 app.use(express.urlencoded({ extended: true })) // to parse form data(urlencoded)
 
 
