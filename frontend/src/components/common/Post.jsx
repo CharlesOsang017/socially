@@ -14,7 +14,7 @@ const Post = ({ post }) => {
 	const {data: user} = useQuery({queryKey: ["authUser"]})
 	const queryClient = useQueryClient()
 
-	const {mutate: deletePost, isPending} = useMutation({
+	const {mutate: deletePost, isPending: isDeletingPost} = useMutation({
 		mutationFn: async()=>{
 			try {
 				const res = await fetch(`/api/post/${post._id}`, {
@@ -35,8 +35,40 @@ const Post = ({ post }) => {
 			toast.error(error.message)
 		}
 	})
+	const {mutate: likePost, isPending: isLikingPost} = useMutation({
+		mutationFn: async()=>{
+			try {
+				const res = await fetch(`/api/post/like/${post._id}`,{
+					method: "POST"
+				})
+				const data = await res.json()
+				if(!res.ok) throw new Error(data.error)
+					return data
+			} catch (error) {
+				throw new Error(error.message)
+				
+			}
+		},
+		onSuccess: (updatedLikes) => {
+			// this is not the best UX, bc it will refetch allpost
+			// queryClient.invalidateQueries({queryKey: ["posts"]})
+			// toast.success("Post liked successfully")
+			// Instead, update the cache directly for the post
+			queryClient.setQueryData(["posts"], (oldData)=>{
+				return oldData.map(p=> {
+					if(p._id === post._id){
+						return {...p, likes: updatedLikes}
+					}
+					return p
+				})
+			})
+		},
+		onError: (error) => {
+			toast.error(error.message)
+		}
+	})
 	const postOwner = post.user;
-	const isLiked = false;
+	const isLiked = post.likes.includes(user._id);
 
 	const isMyPost = user._id === post.user._id;
 
@@ -53,6 +85,8 @@ const Post = ({ post }) => {
 	};
 
 	const handleLikePost = () => {
+		if(isLikingPost) return
+		likePost()
 		
 	};
 
@@ -76,7 +110,7 @@ const Post = ({ post }) => {
 						</span>
 						{isMyPost && (
 							<span className='flex justify-end flex-1'>
-								{isPending ? <LoadingSpinner size="sm" /> : <FaTrash className='cursor-pointer hover:text-red-500' onClick={handleDeletePost} /> }
+								{isDeletingPost ? <LoadingSpinner size="sm" /> : <FaTrash className='cursor-pointer hover:text-red-500' onClick={handleDeletePost} /> }
 							</span>
 						)}
 					</div>
@@ -160,10 +194,13 @@ const Post = ({ post }) => {
 								<span className='text-sm text-slate-500 group-hover:text-green-500'>0</span>
 							</div>
 							<div className='flex gap-1 items-center group cursor-pointer' onClick={handleLikePost}>
-								{!isLiked && (
+								{!isLiked && !isLikingPost && (
 									<FaRegHeart className='w-4 h-4 cursor-pointer text-slate-500 group-hover:text-pink-500' />
 								)}
-								{isLiked && <FaRegHeart className='w-4 h-4 cursor-pointer text-pink-500 ' />}
+								{isLikingPost && <LoadingSpinner size="sm" />}
+								{isLiked && !isLikingPost && (
+									<FaRegHeart className='w-4 h-4 cursor-pointer text-pink-500 ' />
+								)}
 
 								<span
 									className={`text-sm text-slate-500 group-hover:text-pink-500 ${
