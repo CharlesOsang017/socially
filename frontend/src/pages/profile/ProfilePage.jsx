@@ -11,8 +11,10 @@ import { FaArrowLeft } from "react-icons/fa6";
 import { IoCalendarOutline } from "react-icons/io5";
 import { FaLink } from "react-icons/fa";
 import { MdEdit } from "react-icons/md";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatMemberSinceDate } from "../../utils/date";
+import useFollow from "../../hooks/useFollow";
+import toast from "react-hot-toast";
 
 const ProfilePage = () => {
 	const [coverImg, setCoverImg] = useState(null);
@@ -22,9 +24,15 @@ const ProfilePage = () => {
 	const coverImgRef = useRef(null);
 	const profileImgRef = useRef(null);
 
+	const queryClient = useQueryClient()
+
 
 
 	const {username} = useParams()
+
+	const {follow, isPending} = useFollow()
+
+	const {data: authUser} = useQuery({queryKey: ['authUser']})
 
 	const {data: user, isLoading, refetch, isRefetching} = useQuery({
 		queryKey: ['userProfile'],
@@ -40,10 +48,40 @@ const ProfilePage = () => {
 		}
 	})
 
-		const memberSinceDate = formatMemberSinceDate(user?.createdAt)
+    const {mutate: updateProfile, isPending: isUpdatingProfile} = useMutation({
+		mutationFn: async()=>{
+			try {
+				const res = await fetch('/api/user/update', {
+				method: "POST",
+				headers: {
+					"Content-Type":"application/json"
+				},
+				body: JSON.stringify({profileImg, coverImg})
+			})
+			const data = await res.json()
+			if(!res.ok)throw new Error(data.error)
+			return data;
+			} catch (error) {
+				throw new Error(error.message)
+			}
+		},
+		onSuccess: () => {
+			toast.success('Profile updated successfully')
+			Promise.all([
+				queryClient.invalidateQueries({queryKey: ['authUser']}),
+				queryClient.invalidateQueries({queryKey: ['userProfile']})
+			])
+		},
+		onError: (error) => {
+			toast.error(error.message)
+		}
+	})
+
+	const memberSinceDate = formatMemberSinceDate(user?.createdAt)
 
 
-	const isMyProfile = true;
+	const isMyProfile = user?._id === authUser?._id;
+	const isFollowing = authUser?.following.includes(user?._id);
 
 
 
@@ -58,6 +96,8 @@ const ProfilePage = () => {
 			reader.readAsDataURL(file);
 		}
 	};
+
+
 
 	useEffect(()=>{
 		refetch()
@@ -127,21 +167,24 @@ const ProfilePage = () => {
 								</div>
 							</div>
 							<div className='flex justify-end px-4 mt-5'>
-								{isMyProfile && <EditProfileModal />}
+								{isMyProfile && <EditProfileModal user={user} />}
 								{!isMyProfile && (
 									<button
 										className='btn btn-outline rounded-full btn-sm'
-										onClick={() => alert("Followed successfully")}
+										onClick={() => follow(user._id)}
 									>
-										Follow
+										{isPending && "Loading..."}
+										{!isPending && isFollowing && "Unfollow"}
+										{!isPending && !isFollowing && "Follow"}
+
 									</button>
 								)}
 								{(coverImg || profileImg) && (
 									<button
 										className='btn btn-primary rounded-full btn-sm text-white px-4 ml-2'
-										onClick={() => alert("Profile updated successfully")}
+										onClick={() => updateProfile()}
 									>
-										Update
+										{isUpdatingProfile ? 'Updating...' : 'Update'}
 									</button>
 								)}
 							</div>
@@ -159,12 +202,12 @@ const ProfilePage = () => {
 											<>
 												<FaLink className='w-3 h-3 text-slate-500' />
 												<a
-													href='https://youtube.com/@asaprogrammer_'
+													href={user?.link}
 													target='_blank'
 													rel='noreferrer'
 													className='text-sm text-blue-500 hover:underline'
 												>
-													youtube.com/@asaprogrammer_
+													{user?.link}
 												</a>
 											</>
 										</div>
